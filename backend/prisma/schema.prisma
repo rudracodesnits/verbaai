@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ──────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  apiKeys   ApiKey[]
+  usageLogs UsageLog[]
+
+  @@map("users")
+}
+
+// ─── API Keys ───────────────────────────────────────
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  keyHash   String   @unique @map("key_hash")
+  prefix    String                    // first 8 chars of raw key for display
+  name      String   @default("Default")
+  userId    String   @map("user_id")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageLogs UsageLog[]
+
+  @@index([keyHash])
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ─── Usage Logs ─────────────────────────────────────
+
+model UsageLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  apiKeyId   String   @map("api_key_id")
+  endpoint   String
+  tokensUsed Int      @default(0) @map("tokens_used")
+  cached     Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey ApiKey  @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([apiKeyId])
+  @@map("usage_logs")
+}

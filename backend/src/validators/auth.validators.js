@@ -29,10 +29,29 @@ const createApiKeySchema = z.object({
     .max(50, 'Key name must not exceed 50 characters')
     .trim()
     .default('Default'),
+  scopes: z
+    .array(z.enum(['summarize', 'sentiment', 'toxicity', 'keywords', 'chat']))
+    .min(1, 'At least one scope is required')
+    .default(['summarize', 'sentiment', 'toxicity', 'keywords', 'chat']),
+  expiresInDays: z
+    .number()
+    .nullable()
+    .optional(),
+});
+
+const verifyOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  code: z.string().min(6, 'OTP must be 6 digits').max(6, 'OTP must be 6 digits'),
+});
+
+const resendOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
 });
 
 module.exports = {
   registerSchema,
   loginSchema,
   createApiKeySchema,
+  verifyOtpSchema,
+  resendOtpSchema,
 };

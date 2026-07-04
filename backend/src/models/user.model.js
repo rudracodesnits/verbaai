@@ -16,11 +16,16 @@ const UserModel = {
         email: data.email,
         password: data.password,
         name: data.name,
+        googleId: data.googleId,
+        authProvider: data.authProvider || 'local',
+        isVerified: data.isVerified || false,
       },
       select: {
         id: true,
         email: true,
         name: true,
+        isVerified: true,
+        tier: true,
         createdAt: true,
       },
     });
@@ -38,6 +43,17 @@ const UserModel = {
   },
 
   /**
+   * Find user by Google ID.
+   * @param {string} googleId
+   * @returns {Promise<User|null>}
+   */
+  async findByGoogleId(googleId) {
+    return prisma.user.findUnique({
+      where: { googleId },
+    });
+  },
+
+  /**
    * Find user by ID (excludes password).
    * @param {string} id
    * @returns {Promise<User|null>}
@@ -49,7 +65,40 @@ const UserModel = {
         id: true,
         email: true,
         name: true,
+        isVerified: true,
+        tier: true,
         createdAt: true,
+      },
+    });
+  },
+
+  /**
+   * Mark a user as verified.
+   * @param {string} email
+   * @returns {Promise<User>}
+   */
+  async verify(email) {
+    return prisma.user.update({
+      where: { email },
+      data: { isVerified: true },
+    });
+  },
+
+  /**
+   * Update a user's subscription tier.
+   * @param {string} id
+   * @param {string} tier
+   * @returns {Promise<User>}
+   */
+  async updateTier(id, tier) {
+    return prisma.user.update({
+      where: { id },
+      data: { tier },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tier: true,
       },
     });
   },

@@ -198,4 +198,59 @@ router.post('/toxicity', validate(textInputSchema), AIController.toxicity);
  */
 router.post('/keywords', validate(textInputSchema), AIController.keywords);
 
+/**
+ * @swagger
+ * /api/chat:
+ *   post:
+ *     tags: [AI]
+ *     summary: Chat about selected text
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [context, messages]
+ *             properties:
+ *               context:
+ *                 type: string
+ *                 maxLength: 10000
+ *                 example: "Selected text from the page."
+ *               messages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role:
+ *                       type: string
+ *                       enum: [user, assistant, system]
+ *                     content:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Chat response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reply:
+ *                       type: string
+ *                 cached:
+ *                   type: boolean
+ *       401:
+ *         description: Invalid API key
+ *       429:
+ *         description: Rate limit exceeded
+ */
+const { chatInputSchema } = require('../validators/ai.validators');
+router.post('/chat', validate(chatInputSchema), AIController.chat);
+
 module.exports = router;

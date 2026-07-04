@@ -1,12 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { FileText, MessageSquare, ShieldAlert, KeyRound, ArrowRight, Code2 } from 'lucide-react';
 import { FeatureCard } from '../components/FeatureCard';
 
-interface LandingPageProps {
-  onNavigateToPlayground: () => void;
-}
-
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToPlayground }) => {
+export const LandingPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Hero Section */}
@@ -34,20 +31,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToPlayground
             Summarize content, detect sentiment, filter toxicity, and extract keywords with a single API call.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button 
-              onClick={onNavigateToPlayground}
+            <Link 
+              to="/playground"
               className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)]"
             >
               <Code2 className="w-5 h-5" />
               Try API Playground
-            </button>
-            <a 
-              href="#"
+            </Link>
+            <Link 
+              to="/docs"
               className="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors border border-slate-700"
             >
               View Documentation
               <ArrowRight className="w-5 h-5" />
-            </a>
+            </Link>
           </div>
         </div>
       </section>

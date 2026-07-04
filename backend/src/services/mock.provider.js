@@ -31,6 +31,8 @@ const MockAIProvider = {
       result = this._toxicity(text);
     } else if (promptLower.includes('keyword')) {
       result = this._keywords(text);
+    } else if (promptLower.includes('chat') || promptLower.includes('context')) {
+      result = this._chat(text, systemPrompt);
     } else {
       result = { error: 'Unknown task' };
     }
@@ -183,6 +185,42 @@ const MockAIProvider = {
       .map(([word]) => word);
 
     return { keywords };
+  },
+
+  /**
+   * Simple chat response based on input text and context.
+   */
+  _chat(text, systemPrompt) {
+    const lower = text.toLowerCase();
+    
+    if (lower.includes('summarize')) {
+      let contextText = "";
+      const match = systemPrompt.match(/context:\n\n"([\s\S]*?)"\n\nAnswer/);
+      if (match && match[1]) {
+        contextText = match[1];
+      }
+      
+      if (contextText && contextText !== "VerbaAI General Assistant Chat Session") {
+        const sentences = contextText.match(/[^.!?]+[.!?]+/g) || [contextText];
+        const summaryLength = Math.min(2, sentences.length);
+        const summary = sentences.slice(0, summaryLength).join(' ').trim();
+        return { reply: "Here is a brief summary: " + summary };
+      } else {
+        return { reply: "There is no specific text context to summarize. Please provide some text in the context box!" };
+      }
+    } else if (lower.includes('tone') || lower.includes('sentiment')) {
+      return { reply: "Based on the provided context, the tone appears to be informative and narrative, with a slightly dramatic undertone." };
+    } else if (lower.includes('spell') || lower.includes('grammar') || lower.includes('proofread') || lower.includes('errors')) {
+      return { reply: "I have reviewed the text and found no major spelling or grammatical errors. It is well-written." };
+    } else if (lower.includes('mean') || lower.includes('explain')) {
+      return { reply: "Based on the selected text, this usually means that the author is conveying a key concept. It's important to read the surrounding context to fully understand its implications." };
+    } else if (lower.includes('why')) {
+      return { reply: "The text suggests this is because of underlying factors mentioned earlier in the document. Would you like me to elaborate on a specific part?" };
+    } else if (lower.includes('example')) {
+      return { reply: "For example, if you consider a similar scenario, the same principles apply. This helps illustrate the point made in the text." };
+    } else {
+      return { reply: "I understand you're asking about the selected text. It seems to highlight a specific detail. What else would you like to know?" };
+    }
   },
 };
 

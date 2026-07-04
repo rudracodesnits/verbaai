@@ -14,6 +14,9 @@ async function main() {
     logger.info('🔌 Connecting to services...');
     await Promise.all([connectDatabase(), connectRedis()]);
 
+    // Start BullMQ Worker
+    require('./workers/batch.worker');
+
     // Create and start Express app
     const app = createApp();
 

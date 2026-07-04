@@ -26,7 +26,17 @@ async function rateLimiterMiddleware(req, res, next) {
       await redis.expire(key, 86400);
     }
 
-    const limit = env.RATE_LIMIT_PER_DAY;
+    const tier = req.apiUser.tier || 'FREE';
+    let limit = env.RATE_LIMIT_PER_DAY;
+
+    if (tier === 'PRO') {
+      limit = 5000;
+    } else if (tier === 'ENTERPRISE') {
+      limit = 100000;
+    } else {
+      limit = 100;
+    }
+
     const remaining = Math.max(0, limit - current);
 
     // Set rate limit headers

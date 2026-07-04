@@ -14,20 +14,27 @@ const CacheService = {
    * @param {string} text
    * @returns {string}
    */
-  _buildKey(endpoint, text) {
+  _buildKey(endpoint, text, options = {}) {
     const textHash = hashText(text);
-    return `cache:${endpoint}:${textHash}`;
+    const optionString = Object.keys(options)
+      .sort()
+      .filter((k) => options[k] !== undefined && options[k] !== null)
+      .map((k) => `${k}:${options[k]}`)
+      .join(',');
+    const optionsHash = optionString ? `:${hashText(optionString)}` : '';
+    return `cache:${endpoint}:${textHash}${optionsHash}`;
   },
 
   /**
    * Get cached result for an endpoint + input.
    * @param {string} endpoint
    * @param {string} text
+   * @param {Object} [options]
    * @returns {Promise<Object|null>}
    */
-  async get(endpoint, text) {
+  async get(endpoint, text, options) {
     try {
-      const key = this._buildKey(endpoint, text);
+      const key = this._buildKey(endpoint, text, options);
       const cached = await redis.get(key);
 
       if (cached) {
@@ -49,11 +56,12 @@ const CacheService = {
    * @param {string} endpoint
    * @param {string} text
    * @param {Object} result
+   * @param {Object} [options]
    * @returns {Promise<void>}
    */
-  async set(endpoint, text, result) {
+  async set(endpoint, text, result, options) {
     try {
-      const key = this._buildKey(endpoint, text);
+      const key = this._buildKey(endpoint, text, options);
       await redis.set(key, JSON.stringify(result), 'EX', env.CACHE_TTL);
       logger.debug(`Cache SET: ${key} (TTL: ${env.CACHE_TTL}s)`);
     } catch (error) {

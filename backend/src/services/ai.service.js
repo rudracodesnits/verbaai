@@ -19,13 +19,13 @@ const AIService = {
    * @param {string} text
    * @returns {Promise<{ summary: string, tokensUsed: number }>}
    */
-  async summarize(text) {
+  async summarize(text, options = {}) {
     const systemPrompt = `You are a professional text summarizer. 
 Summarize the following text concisely while preserving the key information.
 Return ONLY a JSON object in this exact format: {"summary": "your summary here"}
 Do not include any other text or markdown formatting.`;
 
-    const result = await this._callModel(systemPrompt, text);
+    const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
 
     return {
@@ -39,14 +39,14 @@ Do not include any other text or markdown formatting.`;
    * @param {string} text
    * @returns {Promise<{ sentiment: string, score: number, tokensUsed: number }>}
    */
-  async sentiment(text) {
+  async sentiment(text, options = {}) {
     const systemPrompt = `You are a sentiment analysis expert.
 Analyze the sentiment of the following text.
 Return ONLY a JSON object in this exact format: {"sentiment": "positive" | "negative" | "neutral", "score": <number between -1 and 1>}
 - score: -1 = very negative, 0 = neutral, 1 = very positive
 Do not include any other text or markdown formatting.`;
 
-    const result = await this._callModel(systemPrompt, text);
+    const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
 
     return {
@@ -61,14 +61,14 @@ Do not include any other text or markdown formatting.`;
    * @param {string} text
    * @returns {Promise<{ toxic: boolean, confidence: number, tokensUsed: number }>}
    */
-  async toxicity(text) {
+  async toxicity(text, options = {}) {
     const systemPrompt = `You are a content moderation expert.
 Analyze whether the following text contains toxic, harmful, or offensive content.
 Return ONLY a JSON object in this exact format: {"toxic": true | false, "confidence": <number between 0 and 1>}
 - confidence: how confident you are in your assessment (0 = not confident, 1 = very confident)
 Do not include any other text or markdown formatting.`;
 
-    const result = await this._callModel(systemPrompt, text);
+    const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
 
     return {
@@ -83,18 +83,40 @@ Do not include any other text or markdown formatting.`;
    * @param {string} text
    * @returns {Promise<{ keywords: string[], tokensUsed: number }>}
    */
-  async keywords(text) {
+  async keywords(text, options = {}) {
     const systemPrompt = `You are a keyword extraction expert.
 Extract the most important and relevant keywords from the following text.
 Return ONLY a JSON object in this exact format: {"keywords": ["keyword1", "keyword2", ...]}
 Return between 3 and 10 keywords. Order by relevance (most relevant first).
 Do not include any other text or markdown formatting.`;
 
-    const result = await this._callModel(systemPrompt, text);
+    const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
 
     return {
       keywords: parsed.keywords,
+      tokensUsed: result.tokensUsed,
+    };
+  },
+
+  /**
+   * Chat about a selected text context.
+   * @param {string} context - The selected text
+   * @param {Array<{role: string, content: string}>} messages - Conversation history
+   * @returns {Promise<{ reply: string, tokensUsed: number }>}
+   */
+  async chat(context, messages, options = {}) {
+    const systemPrompt = `You are a helpful assistant. The user has selected the following text as context:\n\n"${context}"\n\nAnswer the user's questions based on this context. Return ONLY a JSON object in this exact format: {"reply": "your response here"}
+Do not include any other text or markdown formatting.`;
+
+    // Format conversation history for _callModel
+    const userMessage = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+
+    const result = await this._callModel(systemPrompt, userMessage, options);
+    const parsed = this._parseJSON(result.content);
+
+    return {
+      reply: parsed.reply,
       tokensUsed: result.tokensUsed,
     };
   },
@@ -109,12 +131,12 @@ Do not include any other text or markdown formatting.`;
    * @param {string} userMessage
    * @returns {Promise<{ content: string, tokensUsed: number }>}
    */
-  async _callModel(systemPrompt, userMessage) {
+  async _callModel(systemPrompt, userMessage, options = {}) {
     if (env.AI_PROVIDER === 'mock') {
       return MockAIProvider.callModel(systemPrompt, userMessage);
     }
 
-    return this._callOpenAI(systemPrompt, userMessage);
+    return this._callOpenAI(systemPrompt, userMessage, options);
   },
 
   /**
@@ -123,7 +145,7 @@ Do not include any other text or markdown formatting.`;
    * @param {string} userMessage
    * @returns {Promise<{ content: string, tokensUsed: number }>}
    */
-  async _callOpenAI(systemPrompt, userMessage) {
+  async _callOpenAI(systemPrompt, userMessage, options = {}) {
     try {
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -131,8 +153,8 @@ Do not include any other text or markdown formatting.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3,
-        max_tokens: 1024,
+        temperature: options.temperature !== undefined ? options.temperature : 0.3,
+        max_tokens: options.maxTokens !== undefined ? options.maxTokens : 1024,
         response_format: { type: 'json_object' },
       });
 

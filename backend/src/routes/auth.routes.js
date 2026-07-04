@@ -6,6 +6,8 @@ const {
   registerSchema,
   loginSchema,
   createApiKeySchema,
+  verifyOtpSchema,
+  resendOtpSchema,
 } = require('../validators/auth.validators');
 
 const router = Router();
@@ -73,6 +75,84 @@ router.post('/register', validate(registerSchema), AuthController.register);
  *         description: Invalid credentials
  */
 router.post('/login', validate(loginSchema), AuthController.login);
+
+/**
+ * @swagger
+ * /auth/google:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login or Register via Google OAuth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idToken]
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid Google token
+ */
+router.post('/google', AuthController.googleLogin);
+
+/**
+ * @swagger
+ * /auth/verify-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Verify email address using OTP code
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               code:
+ *                 type: string
+ *                 minLength: 6
+ *                 maxLength: 6
+ *     responses:
+ *       200:
+ *         description: Verification successful, returns token
+ *       401:
+ *         description: Invalid or expired OTP code
+ */
+router.post('/verify-otp', validate(verifyOtpSchema), AuthController.verifyOtp);
+
+/**
+ * @swagger
+ * /auth/resend-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Resend verification OTP code to an email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: OTP code resent successfully
+ *       404:
+ *         description: User not found
+ */
+router.post('/resend-otp', validate(resendOtpSchema), AuthController.resendOtp);
 
 // ─── Protected Routes (JWT required) ────────────────
 
@@ -160,5 +240,12 @@ router.delete('/keys/:id', authMiddleware, AuthController.revokeApiKey);
  *         description: Unauthorized
  */
 router.get('/usage', authMiddleware, AuthController.getUsage);
+router.get('/me', authMiddleware, AuthController.getMe);
+
+// Logs & Billing routes
+router.get('/logs', authMiddleware, AuthController.getLogs);
+router.post('/create-checkout', authMiddleware, AuthController.createCheckoutSession);
+router.post('/mock-upgrade', authMiddleware, AuthController.verifyMockCheckout);
+router.post('/stripe-webhook', AuthController.handleStripeWebhook);
 
 module.exports = router;

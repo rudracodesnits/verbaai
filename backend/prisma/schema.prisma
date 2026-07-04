@@ -13,17 +13,86 @@ datasource db {
 // ─── Users ──────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String?
+  name          String
+  googleId      String?  @unique @map("google_id")
+  authProvider  String   @default("local") @map("auth_provider")
+  isVerified    Boolean  @default(false) @map("is_verified")
+  tier          String   @default("FREE") @map("tier")
+  
+  // New budget fields
+  monthlyBudget  Int      @default(100000) @map("monthly_budget")
+  alertThreshold Int      @default(80) @map("alert_threshold")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  apiKeys   ApiKey[]
-  usageLogs UsageLog[]
+  apiKeys     ApiKey[]
+  usageLogs   UsageLog[]
+  batchJobs   BatchJob[]
+  alerts      Alert[]
+  teams       Team[]         @relation("TeamOwner")
+  teamMembers TeamMember[]
 
   @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  code      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("otps")
+}
+
+// ─── Teams & Alerts ─────────────────────────────────
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String   @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner     User         @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+  apiKeys   ApiKey[]
+  usageLogs UsageLog[]
+  batchJobs BatchJob[]
+
+  @@index([ownerId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model Alert {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("alerts")
 }
 
 // ─── API Keys ───────────────────────────────────────
@@ -31,17 +100,23 @@ model User {
 model ApiKey {
   id        String   @id @default(uuid())
   keyHash   String   @unique @map("key_hash")
-  prefix    String                    // first 8 chars of raw key for display
+  prefix    String
   name      String   @default("Default")
   userId    String   @map("user_id")
+  teamId    String?  @map("team_id")
+  scopes    String[] @default(["summarize", "sentiment", "toxicity", "keywords", "chat"])
+  expiresAt DateTime? @map("expires_at")
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
   usageLogs UsageLog[]
+  batchJobs BatchJob[]
 
   @@index([keyHash])
   @@index([userId])
+  @@index([teamId])
   @@map("api_keys")
 }
 
@@ -50,16 +125,63 @@ model ApiKey {
 model UsageLog {
   id         String   @id @default(uuid())
   userId     String   @map("user_id")
+  teamId     String?  @map("team_id")
   apiKeyId   String   @map("api_key_id")
   endpoint   String
   tokensUsed Int      @default(0) @map("tokens_used")
   cached     Boolean  @default(false)
+  latency    Int      @default(0)
+  error      Boolean  @default(false)
+  statusCode Int      @default(200) @map("status_code")
+  inputText  String?  @map("input_text")
+  outputText String?  @map("output_text")
   createdAt  DateTime @default(now()) @map("created_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  apiKey ApiKey  @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([teamId, createdAt])
   @@index([apiKeyId])
   @@map("usage_logs")
+}
+
+model BatchJob {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  teamId         String?        @map("team_id")
+  apiKeyId       String         @map("api_key_id")
+  endpoint       String
+  status         String         @default("PENDING")
+  totalItems     Int            @map("total_items")
+  processedItems Int            @default(0) @map("processed_items")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  items  BatchJobItem[]
+
+  @@index([userId, createdAt])
+  @@index([teamId, createdAt])
+  @@index([apiKeyId])
+  @@map("batch_jobs")
+}
+
+model BatchJobItem {
+  id         String   @id @default(uuid())
+  jobId      String   @map("job_id")
+  status     String   @default("PENDING")
+  inputText  String   @map("input_text")
+  outputText String?  @map("output_text")
+  error      String?
+  latency    Int      @default(0)
+  tokensUsed Int      @default(0) @map("tokens_used")
+
+  job BatchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("batch_job_items")
 }

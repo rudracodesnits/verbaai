@@ -22,6 +22,11 @@ const envSchema = z.object({
 
   RATE_LIMIT_PER_DAY: z.coerce.number().default(100),
   CACHE_TTL: z.coerce.number().default(3600),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_ID: z.string().optional(),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,16 +1,22 @@
 const { env } = require('../config/env');
 const UserModel = require('../models/user.model');
 const logger = require('../utils/logger');
-let stripe = null;
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 
-if (env.STRIPE_SECRET_KEY) {
-  stripe = require('stripe')(env.STRIPE_SECRET_KEY);
+let razorpay = null;
+
+if (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: env.RAZORPAY_KEY_ID,
+    key_secret: env.RAZORPAY_KEY_SECRET,
+  });
 }
 
 const BillingService = {
   /**
    * Create a checkout session.
-   * If Stripe secret key is not set, returns a mock checkout link for dev.
+   * If Razorpay credentials are not set, returns a mock checkout link for dev.
    */
   async createCheckoutSession(userId) {
     const user = await UserModel.findById(userId);
@@ -18,68 +24,77 @@ const BillingService = {
       throw new Error('User not found');
     }
 
-    if (!stripe) {
-      logger.info(`Stripe is not configured. Generating mock checkout session for user ${userId}`);
+    if (!razorpay) {
+      logger.info(`Razorpay is not configured. Generating mock checkout session for user ${userId}`);
       // Dev bypass: redirect to local frontend success page with a mock query param
       const mockCheckoutUrl = `${env.FRONTEND_URL}/dashboard?session_id=mock_session_${Date.now()}`;
       return { url: mockCheckoutUrl, isMock: true };
     }
 
     try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price: env.STRIPE_PRICE_ID,
-            quantity: 1,
-          },
-        ],
-        mode: 'subscription',
-        success_url: `${env.FRONTEND_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${env.FRONTEND_URL}/dashboard?status=cancelled`,
-        customer_email: user.email,
-        metadata: {
+      const paymentLink = await razorpay.paymentLink.create({
+        amount: 99900, // 999 INR (amount in paise)
+        currency: 'INR',
+        accept_partial: false,
+        description: 'Upgrade to VerbaAI PRO',
+        customer: {
+          name: user.name || 'User',
+          email: user.email,
+        },
+        notify: {
+          sms: false,
+          email: true,
+        },
+        reminder_enable: true,
+        callback_url: `${env.FRONTEND_URL}/dashboard?session_id=rzp_session_${Date.now()}`,
+        callback_method: 'get',
+        notes: {
           userId: user.id,
         },
       });
 
-      return { url: session.url, isMock: false };
+      return { url: paymentLink.short_url, isMock: false };
     } catch (error) {
-      logger.error('Failed to create Stripe Checkout session:', error.message);
+      logger.error('Failed to create Razorpay Payment Link:', error.message);
       throw error;
     }
   },
 
   /**
-   * Process a Stripe webhook payload.
+   * Process a Razorpay webhook payload.
    */
   async handleWebhook(rawBody, signature) {
-    if (!stripe || !env.STRIPE_WEBHOOK_SECRET) {
-      logger.warn('Stripe webhook received but Stripe or webhook secret is not configured.');
-      return { success: false, message: 'Stripe not configured' };
+    if (!razorpay || !env.RAZORPAY_WEBHOOK_SECRET) {
+      logger.warn('Razorpay webhook received but Razorpay or webhook secret is not configured.');
+      return { success: false, message: 'Razorpay not configured' };
     }
 
     try {
-      const event = stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        env.STRIPE_WEBHOOK_SECRET
-      );
+      const expectedSignature = crypto
+        .createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
 
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const userId = session.metadata?.userId;
+      if (expectedSignature !== signature) {
+        throw new Error('Signature mismatch');
+      }
+
+      const event = JSON.parse(rawBody.toString());
+
+      if (event.event === 'payment_link.paid') {
+        const paymentLink = event.payload.payment_link.entity;
+        const userId = paymentLink.notes?.userId;
 
         if (userId) {
           await UserModel.updateTier(userId, 'PRO');
-          logger.info(`✅ User ${userId} upgraded to PRO via Stripe webhook`);
-          return { success: true, userId, event: event.type };
+          logger.info(`✅ User ${userId} upgraded to PRO via Razorpay webhook`);
+          return { success: true, userId, event: event.event };
         }
       }
 
-      return { success: true, event: event.type };
+      return { success: true, event: event.event };
     } catch (error) {
-      logger.error('Stripe webhook verification failed:', error.message);
+      logger.error('Razorpay webhook verification failed:', error.message);
       throw new Error(`Webhook Error: ${error.message}`);
     }
   },
@@ -88,7 +103,7 @@ const BillingService = {
    * Helper to verify mock checkout.
    */
   async verifyMockCheckout(userId, sessionId) {
-    if (sessionId && sessionId.startsWith('mock_session_')) {
+    if (sessionId && (sessionId.startsWith('mock_session_') || sessionId.startsWith('rzp_session_'))) {
       await UserModel.updateTier(userId, 'PRO');
       logger.info(`✅ User ${userId} upgraded to PRO via Mock checkout`);
       return { success: true, tier: 'PRO' };

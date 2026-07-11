@@ -238,11 +238,11 @@ const AuthController = {
   },
 
   /**
-   * POST /auth/stripe-webhook — Handle incoming Stripe webhooks
+   * POST /auth/razorpay-webhook — Handle incoming Razorpay webhooks
    */
-  async handleStripeWebhook(req, res, next) {
+  async handleRazorpayWebhook(req, res, next) {
     try {
-      const signature = req.headers['stripe-signature'];
+      const signature = req.headers['x-razorpay-signature'];
       const result = await BillingService.handleWebhook(req.rawBody, signature);
       res.json({
         success: true,

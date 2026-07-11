@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Key, Send, AlertCircle, Loader2, Copy, Check, Terminal, GitCompare } from 'lucide-react';
-import { verbaApi } from '../services/api';
+import { verbaApi, fineTuningApi } from '../services/api';
 import { JSONViewer } from '../components/JSONViewer';
 
 type Endpoint = 'summarize' | 'sentiment' | 'toxicity' | 'keywords' | 'chat';
@@ -14,6 +14,29 @@ interface RequestHistory {
 
 export const PlaygroundPage: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
+  const [modelList, setModelList] = useState<string[]>(['gpt-4o-mini', 'gpt-3.5-turbo']);
+  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
+  const [selectedModelB, setSelectedModelB] = useState('gpt-4o-mini');
+
+  useEffect(() => {
+    const fetchCustomModels = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const res = await fineTuningApi.getJobs();
+          if (res.success && res.data) {
+            const succeededModels = res.data
+              .filter((j: any) => j.status === 'SUCCEEDED' && j.fineTunedModel)
+              .map((j: any) => j.fineTunedModel);
+            setModelList(['gpt-4o-mini', 'gpt-3.5-turbo', ...succeededModels]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load custom models:', err);
+      }
+    };
+    fetchCustomModels();
+  }, []);
   const [text, setText] = useState('VerbaAI is an incredible tool that allows developers to quickly integrate natural language processing capabilities into their applications. However, sometimes dealing with complex APIs can be frustrating if the documentation is poor.');
   const [endpoint, setEndpoint] = useState<Endpoint>('sentiment');
   
@@ -76,7 +99,7 @@ export const PlaygroundPage: React.FC = () => {
       const startTime = Date.now();
       try {
         let res;
-        const options = { temperature, maxTokens };
+        const options = { temperature, maxTokens, model: selectedModel };
         switch (endpoint) {
           case 'summarize':
             res = await verbaApi.summarize(text, apiKey, options);
@@ -118,7 +141,7 @@ export const PlaygroundPage: React.FC = () => {
       const startTime = Date.now();
       try {
         let res;
-        const options = { temperature: temperatureB, maxTokens: maxTokensB };
+        const options = { temperature: temperatureB, maxTokens: maxTokensB, model: selectedModelB };
         switch (endpoint) {
           case 'summarize':
             res = await verbaApi.summarize(text, apiKey, options);
@@ -194,12 +217,12 @@ export const PlaygroundPage: React.FC = () => {
     const escapedText = text.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
     const jsPayload = endpoint === 'chat'
-      ? `{\n    context: "${escapedText}",\n    messages: [{ role: 'user', content: 'What does this mean?' }],\n    temperature: ${temperature},\n    maxTokens: ${maxTokens}\n  }`
-      : `{\n    text: "${escapedText}",\n    temperature: ${temperature},\n    maxTokens: ${maxTokens}\n  }`;
+      ? `{\n    context: "${escapedText}",\n    messages: [{ role: 'user', content: 'What does this mean?' }],\n    model: "${selectedModel}",\n    temperature: ${temperature},\n    maxTokens: ${maxTokens}\n  }`
+      : `{\n    text: "${escapedText}",\n    model: "${selectedModel}",\n    temperature: ${temperature},\n    maxTokens: ${maxTokens}\n  }`;
 
     const jsonPayload = endpoint === 'chat'
-      ? `{\n    "context": "${escapedText}",\n    "messages": [{ "role": "user", "content": "What does this mean?" }],\n    "temperature": ${temperature},\n    "maxTokens": ${maxTokens}\n}`
-      : `{\n    "text": "${escapedText}",\n    "temperature": ${temperature},\n    "maxTokens": ${maxTokens}\n}`;
+      ? `{\n    "context": "${escapedText}",\n    "messages": [{ "role": "user", "content": "What does this mean?" }],\n    "model": "${selectedModel}",\n    "temperature": ${temperature},\n    "maxTokens": ${maxTokens}\n}`
+      : `{\n    "text": "${escapedText}",\n    "model": "${selectedModel}",\n    "temperature": ${temperature},\n    "maxTokens": ${maxTokens}\n}`;
 
     switch (snippetTab) {
       case 'javascript':
@@ -350,9 +373,23 @@ func main() {
         {/* API Settings: Temperature & Max Tokens (Standard or Dual) */}
         {!compareMode ? (
           <div className="glass-panel p-4 rounded-xl space-y-4">
-            <label className="block text-sm font-medium text-slate-300">
-              API Settings
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-300">
+                API Settings
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">Model:</span>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="bg-slate-900 border border-slate-750 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {modelList.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="flex justify-between items-center mb-1">
@@ -390,9 +427,20 @@ func main() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Config A Panel */}
             <div className="glass-panel p-4 rounded-xl border border-blue-500/10 space-y-4">
-              <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold tracking-wider uppercase">
-                Configuration A
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold tracking-wider uppercase">
+                  Configuration A
+                </span>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="bg-slate-900 border border-slate-750 rounded px-2 py-0.5 text-[10px] text-slate-200 focus:outline-none"
+                >
+                  {modelList.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between items-center mb-1">
@@ -429,9 +477,20 @@ func main() {
 
             {/* Config B Panel */}
             <div className="glass-panel p-4 rounded-xl border border-purple-500/10 space-y-4">
-              <span className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded text-[10px] font-bold tracking-wider uppercase">
-                Configuration B
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded text-[10px] font-bold tracking-wider uppercase">
+                  Configuration B
+                </span>
+                <select
+                  value={selectedModelB}
+                  onChange={(e) => setSelectedModelB(e.target.value)}
+                  className="bg-slate-900 border border-slate-750 rounded px-2 py-0.5 text-[10px] text-slate-200 focus:outline-none"
+                >
+                  {modelList.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between items-center mb-1">

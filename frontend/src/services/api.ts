@@ -19,35 +19,35 @@ api.interceptors.request.use((config) => {
 });
 
 export const verbaApi = {
-  summarize: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number }) => {
+  summarize: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => {
     const response = await api.post('/api/summarize', { text, ...options }, {
       headers: { 'x-api-key': apiKey }
     });
     return response.data;
   },
 
-  sentiment: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number }) => {
+  sentiment: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => {
     const response = await api.post('/api/sentiment', { text, ...options }, {
       headers: { 'x-api-key': apiKey }
     });
     return response.data;
   },
 
-  toxicity: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number }) => {
+  toxicity: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => {
     const response = await api.post('/api/toxicity', { text, ...options }, {
       headers: { 'x-api-key': apiKey }
     });
     return response.data;
   },
 
-  keywords: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number }) => {
+  keywords: async (text: string, apiKey: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => {
     const response = await api.post('/api/keywords', { text, ...options }, {
       headers: { 'x-api-key': apiKey }
     });
     return response.data;
   },
 
-  chat: async (context: string, messages: any[], apiKey: string, options?: { temperature?: number; maxTokens?: number }) => {
+  chat: async (context: string, messages: any[], apiKey: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => {
     const response = await api.post('/api/chat', { context, messages, ...options }, {
       headers: { 'x-api-key': apiKey }
     });
@@ -57,7 +57,7 @@ export const verbaApi = {
   submitBatchJob: async (
     endpoint: string,
     texts: string[],
-    options: { temperature?: number; maxTokens?: number },
+    options: { temperature?: number; maxTokens?: number; model?: string },
     apiKey: string
   ) => {
     const response = await api.post(`/api/batch/${endpoint}`, { texts, ...options }, {
@@ -173,6 +173,21 @@ export const alertApi = {
   },
   markAllRead: async () => {
     const response = await api.post('/api/alerts/mark-all-read');
+    return response.data;
+  }
+};
+
+export const fineTuningApi = {
+  createJob: async (data: { baseModel: string; datasetContent: string; datasetName: string }) => {
+    const response = await api.post('/api/finetuning/jobs', data);
+    return response.data;
+  },
+  getJobs: async () => {
+    const response = await api.get('/api/finetuning/jobs');
+    return response.data;
+  },
+  getJobStatus: async (id: string) => {
+    const response = await api.get(`/api/finetuning/jobs/${id}`);
     return response.data;
   }
 };

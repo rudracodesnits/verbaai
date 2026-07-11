@@ -7,9 +7,7 @@ const { textInputSchema } = require('../validators/ai.validators');
 
 const router = Router();
 
-// All /api routes require API key auth + rate limiting
-router.use(apiKeyMiddleware);
-router.use(rateLimiterMiddleware);
+const apiMiddlewareStack = [apiKeyMiddleware, rateLimiterMiddleware];
 
 /**
  * @swagger
@@ -53,7 +51,7 @@ router.use(rateLimiterMiddleware);
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/summarize', validate(textInputSchema), AIController.summarize);
+router.post('/summarize', apiMiddlewareStack, validate(textInputSchema), AIController.summarize);
 
 /**
  * @swagger
@@ -102,7 +100,7 @@ router.post('/summarize', validate(textInputSchema), AIController.summarize);
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/sentiment', validate(textInputSchema), AIController.sentiment);
+router.post('/sentiment', apiMiddlewareStack, validate(textInputSchema), AIController.sentiment);
 
 /**
  * @swagger
@@ -150,7 +148,7 @@ router.post('/sentiment', validate(textInputSchema), AIController.sentiment);
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/toxicity', validate(textInputSchema), AIController.toxicity);
+router.post('/toxicity', apiMiddlewareStack, validate(textInputSchema), AIController.toxicity);
 
 /**
  * @swagger
@@ -196,7 +194,7 @@ router.post('/toxicity', validate(textInputSchema), AIController.toxicity);
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/keywords', validate(textInputSchema), AIController.keywords);
+router.post('/keywords', apiMiddlewareStack, validate(textInputSchema), AIController.keywords);
 
 /**
  * @swagger
@@ -251,6 +249,6 @@ router.post('/keywords', validate(textInputSchema), AIController.keywords);
  *         description: Rate limit exceeded
  */
 const { chatInputSchema } = require('../validators/ai.validators');
-router.post('/chat', validate(chatInputSchema), AIController.chat);
+router.post('/chat', apiMiddlewareStack, validate(chatInputSchema), AIController.chat);
 
 module.exports = router;

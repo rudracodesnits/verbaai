@@ -24,7 +24,7 @@ function createApp() {
   app.use(express.json({
     limit: '1mb',
     verify: (req, res, buf) => {
-      if (req.originalUrl && req.originalUrl.endsWith('/stripe-webhook')) {
+      if (req.originalUrl && req.originalUrl.endsWith('/razorpay-webhook')) {
         req.rawBody = buf;
       }
     }

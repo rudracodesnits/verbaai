@@ -35,8 +35,25 @@ model User {
   alerts      Alert[]
   teams       Team[]         @relation("TeamOwner")
   teamMembers TeamMember[]
+  fineTuningJobs FineTuningJob[]
 
   @@map("users")
+}
+
+model FineTuningJob {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  openaiJobId    String?  @map("openai_job_id")
+  baseModel      String   @map("base_model")
+  fineTunedModel String?  @map("fine_tuned_model")
+  status         String   @default("PENDING") // PENDING, RUNNING, SUCCEEDED, FAILED
+  datasetName    String   @map("dataset_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("fine_tuning_jobs")
 }
 
 model Otp {

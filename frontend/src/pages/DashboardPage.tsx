@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { dashboardApi, authApi, verbaApi, teamApi, alertApi } from '../services/api';
+import { dashboardApi, authApi, verbaApi, teamApi, alertApi, fineTuningApi } from '../services/api';
 import { 
   Key, Plus, Trash2, Copy, Check, Loader2, Activity, Database, Clock, Zap, AlertTriangle, 
   CreditCard, Sparkles, CheckCircle, Layers, Upload, PlayCircle, ExternalLink,
-  Users, Settings, Bell, Mail
+  Users, Settings, Bell, Mail, Cpu
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -24,7 +24,7 @@ export const DashboardPage: React.FC = () => {
   const [upgrading, setUpgrading] = useState(false);
 
   // Tabs & Features
-  const [activeTab, setActiveTab] = useState<'keys' | 'batch' | 'teams' | 'settings'>('keys');
+  const [activeTab, setActiveTab] = useState<'keys' | 'batch' | 'teams' | 'settings' | 'finetuning'>('keys');
   const [teams, setTeams] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
@@ -38,6 +38,13 @@ export const DashboardPage: React.FC = () => {
   const [batchTemp, setBatchTemp] = useState(0.3);
   const [batchTokens, setBatchTokens] = useState(1024);
   const [submittingBatch, setSubmittingBatch] = useState(false);
+
+  // Fine Tuning states
+  const [fineTuningJobs, setFineTuningJobs] = useState<any[]>([]);
+  const [fineTuningBaseModel, setFineTuningBaseModel] = useState('gpt-4o-mini');
+  const [fineTuningDatasetContent, setFineTuningDatasetContent] = useState('');
+  const [fineTuningDatasetName, setFineTuningDatasetName] = useState('custom_dataset.jsonl');
+  const [submittingFineTuning, setSubmittingFineTuning] = useState(false);
 
   const [selectedScopes, setSelectedScopes] = useState<string[]>([
     'summarize',
@@ -64,13 +71,14 @@ export const DashboardPage: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const [keysRes, usageRes, meRes, batchRes, teamsRes, alertsRes] = await Promise.all([
+        const [keysRes, usageRes, meRes, batchRes, teamsRes, alertsRes, ftRes] = await Promise.all([
           dashboardApi.getKeys(),
           dashboardApi.getUsage(),
           authApi.getMe(),
           dashboardApi.getBatchJobs(1, 15),
           teamApi.getTeams().catch(() => ({ success: false })),
-          alertApi.getAlerts().catch(() => ({ success: false }))
+          alertApi.getAlerts().catch(() => ({ success: false })),
+          fineTuningApi.getJobs().catch(() => ({ success: false }))
         ]);
 
         if (keysRes.success) setKeys(keysRes.data);
@@ -78,6 +86,7 @@ export const DashboardPage: React.FC = () => {
         if (batchRes.success) setBatchJobs(batchRes.data.jobs);
         if (teamsRes && teamsRes.success) setTeams(teamsRes.data?.teams || []);
         if (alertsRes && alertsRes.success) setAlerts(alertsRes.data?.alerts || []);
+        if (ftRes && ftRes.success) setFineTuningJobs(ftRes.data || []);
         if (usageRes.success) {
           const stats = usageRes.data;
           setTotalRequests(stats.totalRequests || 0);
@@ -103,6 +112,56 @@ export const DashboardPage: React.FC = () => {
 
     fetchData();
   }, [isAuthenticated, navigate, updateUser]);
+
+  useEffect(() => {
+    let intervalId: any;
+    const hasRunningJobs = fineTuningJobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
+    
+    if (hasRunningJobs && isAuthenticated) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fineTuningApi.getJobs();
+          if (res.success) {
+            setFineTuningJobs(res.data || []);
+          }
+        } catch (e) {
+          console.error('Failed to poll fine tuning jobs:', e);
+        }
+      }, 5500); // Poll every 5.5s
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [fineTuningJobs, isAuthenticated]);
+
+  const handleCreateFineTuningJob = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fineTuningDatasetContent) return;
+
+    setSubmittingFineTuning(true);
+    try {
+      const res = await fineTuningApi.createJob({
+        baseModel: fineTuningBaseModel,
+        datasetContent: fineTuningDatasetContent,
+        datasetName: fineTuningDatasetName,
+      });
+
+      if (res.success) {
+        setFineTuningDatasetContent('');
+        // Refresh job list
+        const jobsRes = await fineTuningApi.getJobs();
+        if (jobsRes.success) {
+          setFineTuningJobs(jobsRes.data || []);
+        }
+        alert('Fine-tuning training run launched successfully!');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to start fine-tuning job.');
+    } finally {
+      setSubmittingFineTuning(false);
+    }
+  };
 
   // Polling for active batch jobs
   useEffect(() => {
@@ -428,6 +487,17 @@ export const DashboardPage: React.FC = () => {
             >
               <Settings className="w-4 h-4" />
               Settings
+            </button>
+            <button
+              onClick={() => setActiveTab('finetuning')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === 'finetuning' 
+                  ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.4)]' 
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              Fine-Tuning
             </button>
           </div>
 
@@ -888,6 +958,151 @@ export const DashboardPage: React.FC = () => {
                     <span className="font-mono text-slate-200 font-semibold">{user?.alertThreshold || 80}%</span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2 italic">Budget limits can be adjusted by contacting support or upgrading to an Enterprise plan.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'finetuning' && (
+            <div className="space-y-6">
+              {/* Job Creation Panel */}
+              <div className="glass-panel p-6 rounded-xl border border-slate-700/50">
+                <h2 className="text-xl font-semibold text-slate-100 flex items-center gap-2 mb-4">
+                  <Cpu className="w-5 h-5 text-blue-400" />
+                  Launch Fine-Tuning Run
+                </h2>
+                <form onSubmit={handleCreateFineTuningJob} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                        Base Model
+                      </label>
+                      <select
+                        value={fineTuningBaseModel}
+                        onChange={(e) => setFineTuningBaseModel(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      >
+                        <option value="gpt-4o-mini">gpt-4o-mini (Recommended)</option>
+                        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                        Dataset Filename
+                      </label>
+                      <input
+                        type="text"
+                        value={fineTuningDatasetName}
+                        onChange={(e) => setFineTuningDatasetName(e.target.value)}
+                        placeholder="e.g. classification_dataset.jsonl"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                      Dataset Content (JSONL Format)
+                    </label>
+                    <textarea
+                      value={fineTuningDatasetContent}
+                      onChange={(e) => setFineTuningDatasetContent(e.target.value)}
+                      placeholder={`{"messages": [{"role": "system", "content": "You are a toxic comment classifier."}, {"role": "user", "content": "Shut up!"}, {"role": "assistant", "content": "{\\"toxic\\": true}"}]}\n{"messages": [{"role": "system", "content": "You are a toxic comment classifier."}, {"role": "user", "content": "Have a nice day!"}, {"role": "assistant", "content": "{\\"toxic\\": false}"}]}`}
+                      className="w-full h-36 bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 custom-scrollbar"
+                      required
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Provide at least 3 training lines of chat messages in JSONL structure. (OpenAI requires at least 10 lines for real runs; Mock runs require at least 3 lines).</p>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={submittingFineTuning}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-750 disabled:text-slate-500 text-white rounded-lg font-semibold text-xs tracking-wider uppercase flex items-center gap-2 transition-all shadow-[0_0_12px_rgba(37,99,235,0.2)]"
+                    >
+                      {submittingFineTuning && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {submittingFineTuning ? 'Launching...' : 'Start Training Run'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Jobs History Panel */}
+              <div className="glass-panel p-6 rounded-xl border border-slate-700/50">
+                <h2 className="text-xl font-semibold text-slate-100 flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-purple-400" />
+                  Fine-Tuning History
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-700 text-sm text-slate-400">
+                        <th className="pb-3 font-medium">Date</th>
+                        <th className="pb-3 font-medium">Dataset</th>
+                        <th className="pb-3 font-medium">Base Model</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium">Resulting Model</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {fineTuningJobs.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">
+                            No training runs launched yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        fineTuningJobs.map((job) => (
+                          <tr key={job.id} className="text-sm">
+                            <td className="py-3.5 text-slate-400 font-mono text-xs">
+                              {new Date(job.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="py-3.5 text-slate-200 font-medium">
+                              {job.datasetName}
+                            </td>
+                            <td className="py-3.5 text-slate-400 font-mono text-xs">
+                              {job.baseModel}
+                            </td>
+                            <td className="py-3.5">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border ${
+                                job.status === 'SUCCEEDED'
+                                  ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                  : job.status === 'FAILED'
+                                  ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                  : job.status === 'RUNNING'
+                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}>
+                                {job.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 font-mono text-xs text-slate-350">
+                              {job.fineTunedModel ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-blue-400">
+                                    {job.fineTunedModel}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(job.fineTunedModel);
+                                      alert('Model ID copied to clipboard!');
+                                    }}
+                                    className="p-1 text-slate-500 hover:text-slate-200"
+                                    title="Copy model ID"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

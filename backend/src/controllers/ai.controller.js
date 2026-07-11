@@ -15,8 +15,8 @@ const AIController = {
     const startTime = Date.now();
     const endpoint = 'summarize';
     try {
-      const { text, temperature, maxTokens } = req.body;
-      const options = { temperature, maxTokens };
+      const { text, model, temperature, maxTokens } = req.body;
+      const options = { model, temperature, maxTokens };
 
       // Check cache first
       const cached = await CacheService.get(endpoint, text, options);
@@ -94,8 +94,8 @@ const AIController = {
     const startTime = Date.now();
     const endpoint = 'sentiment';
     try {
-      const { text, temperature, maxTokens } = req.body;
-      const options = { temperature, maxTokens };
+      const { text, model, temperature, maxTokens } = req.body;
+      const options = { model, temperature, maxTokens };
 
       const cached = await CacheService.get(endpoint, text, options);
       if (cached) {
@@ -172,8 +172,8 @@ const AIController = {
     const startTime = Date.now();
     const endpoint = 'toxicity';
     try {
-      const { text, temperature, maxTokens } = req.body;
-      const options = { temperature, maxTokens };
+      const { text, model, temperature, maxTokens } = req.body;
+      const options = { model, temperature, maxTokens };
 
       const cached = await CacheService.get(endpoint, text, options);
       if (cached) {
@@ -250,8 +250,8 @@ const AIController = {
     const startTime = Date.now();
     const endpoint = 'keywords';
     try {
-      const { text, temperature, maxTokens } = req.body;
-      const options = { temperature, maxTokens };
+      const { text, model, temperature, maxTokens } = req.body;
+      const options = { model, temperature, maxTokens };
 
       const cached = await CacheService.get(endpoint, text, options);
       if (cached) {
@@ -326,8 +326,8 @@ const AIController = {
     const startTime = Date.now();
     const endpoint = 'chat';
     try {
-      const { context, messages, temperature, maxTokens } = req.body;
-      const options = { temperature, maxTokens };
+      const { context, messages, model, temperature, maxTokens } = req.body;
+      const options = { model, temperature, maxTokens };
 
       // We won't cache chat responses since they depend on the conversation history
       const result = await AIService.chat(context, messages, options);

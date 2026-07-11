@@ -246,6 +246,6 @@ router.get('/me', authMiddleware, AuthController.getMe);
 router.get('/logs', authMiddleware, AuthController.getLogs);
 router.post('/create-checkout', authMiddleware, AuthController.createCheckoutSession);
 router.post('/mock-upgrade', authMiddleware, AuthController.verifyMockCheckout);
-router.post('/stripe-webhook', AuthController.handleStripeWebhook);
+router.post('/razorpay-webhook', AuthController.handleRazorpayWebhook);
 
 module.exports = router;

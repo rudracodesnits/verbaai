@@ -22,8 +22,8 @@ const AIService = {
   async summarize(text, options = {}) {
     const systemPrompt = `You are a professional text summarizer. 
 Summarize the following text concisely while preserving the key information.
-Return ONLY a JSON object in this exact format: {"summary": "your summary here"}
-Do not include any other text or markdown formatting.`;
+Return ONLY a valid JSON object matching the schema: {"summary": string}.
+Do not include any markdown formatting, explanations, or backticks (e.g. \`\`\`json).`;
 
     const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
@@ -42,9 +42,9 @@ Do not include any other text or markdown formatting.`;
   async sentiment(text, options = {}) {
     const systemPrompt = `You are a sentiment analysis expert.
 Analyze the sentiment of the following text.
-Return ONLY a JSON object in this exact format: {"sentiment": "positive" | "negative" | "neutral", "score": <number between -1 and 1>}
+Return ONLY a valid JSON object matching the schema: {"sentiment": "positive" | "negative" | "neutral", "score": number between -1 and 1}.
 - score: -1 = very negative, 0 = neutral, 1 = very positive
-Do not include any other text or markdown formatting.`;
+Do not include any markdown formatting, explanations, or backticks (e.g. \`\`\`json).`;
 
     const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
@@ -64,9 +64,9 @@ Do not include any other text or markdown formatting.`;
   async toxicity(text, options = {}) {
     const systemPrompt = `You are a content moderation expert.
 Analyze whether the following text contains toxic, harmful, or offensive content.
-Return ONLY a JSON object in this exact format: {"toxic": true | false, "confidence": <number between 0 and 1>}
+Return ONLY a valid JSON object matching the schema: {"toxic": boolean, "confidence": number between 0 and 1}.
 - confidence: how confident you are in your assessment (0 = not confident, 1 = very confident)
-Do not include any other text or markdown formatting.`;
+Do not include any markdown formatting, explanations, or backticks (e.g. \`\`\`json).`;
 
     const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
@@ -86,9 +86,9 @@ Do not include any other text or markdown formatting.`;
   async keywords(text, options = {}) {
     const systemPrompt = `You are a keyword extraction expert.
 Extract the most important and relevant keywords from the following text.
-Return ONLY a JSON object in this exact format: {"keywords": ["keyword1", "keyword2", ...]}
+Return ONLY a valid JSON object matching the schema: {"keywords": string[]}.
 Return between 3 and 10 keywords. Order by relevance (most relevant first).
-Do not include any other text or markdown formatting.`;
+Do not include any markdown formatting, explanations, or backticks (e.g. \`\`\`json).`;
 
     const result = await this._callModel(systemPrompt, text, options);
     const parsed = this._parseJSON(result.content);
@@ -106,8 +106,8 @@ Do not include any other text or markdown formatting.`;
    * @returns {Promise<{ reply: string, tokensUsed: number }>}
    */
   async chat(context, messages, options = {}) {
-    const systemPrompt = `You are a helpful assistant. The user has selected the following text as context:\n\n"${context}"\n\nAnswer the user's questions based on this context. Return ONLY a JSON object in this exact format: {"reply": "your response here"}
-Do not include any other text or markdown formatting.`;
+    const systemPrompt = `You are a helpful assistant. The user has selected the following text as context:\n\n"${context}"\n\nAnswer the user's questions based on this context. Return ONLY a valid JSON object matching the schema: {"reply": string}.
+Do not include any markdown formatting, explanations, or backticks (e.g. \`\`\`json).`;
 
     // Format conversation history for _callModel
     const userMessage = messages.map(m => `${m.role}: ${m.content}`).join('\n');
@@ -148,7 +148,7 @@ Do not include any other text or markdown formatting.`;
   async _callOpenAI(systemPrompt, userMessage, options = {}) {
     try {
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: options.model || 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
